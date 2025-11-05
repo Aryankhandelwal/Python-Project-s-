@@ -1,0 +1,160 @@
+import yfinance as yf
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime
+from tabulate import tabulate
+
+# ===== USER SETTINGS =====
+EMAIL_SENDER = "finsights18@gmail.com"
+EMAIL_PASSWORD = "dava azpd stji uyyh"  # Gmail App password
+EMAIL_RECEIVERS = ["finsights18@gmail.com", "aryankhandelwal182005@gmail.com"]
+
+
+# ===== FUNCTION TO SEND EMAIL =====
+def send_email(subject, message):
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = ", ".join(EMAIL_RECEIVERS)
+        msg["Subject"] = subject
+
+        # Attach the HTML message
+        msg.attach(MIMEText(message, "html"))
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVERS, msg.as_string())
+        server.quit()
+        print("✅ Email sent successfully!")
+    except Exception as e:
+        print("❌ Error sending email:", e)
+
+
+# Your portfolio
+portfolio = [
+    {"symbol": "TARIL.NS", "quantity": 7300, "buy_price": 164},
+    {"symbol": "TIL.NS", "quantity": 6500, "buy_price": 313},
+    {"symbol": "SPICEJET.BO", "quantity": 1400, "buy_price": 58.04},
+    {"symbol": "NIYOGIN.BO", "quantity": 100, "buy_price": 70.00}
+]
+
+
+# ===== FUNCTION TO FETCH & CALCULATE RETURNS =====
+def analyze_stocks():
+    table_data = []
+    total_investment = 0
+    total_value = 0
+
+    # Headers for the table
+    headers = ["Stock", "Qty", "Buy Price", "Current Price", "Investment", "Current Value", "P/L"]
+
+    for stock in portfolio:
+        try:
+            ticker = yf.Ticker(stock["symbol"])
+            current_price = ticker.history(period="1d")["Close"].iloc[-1]
+        except IndexError:
+            current_price = 0  # Handle cases where data isn't available
+
+        investment = stock["buy_price"] * stock["quantity"]
+        current_value = current_price * stock["quantity"]
+        profit_loss = current_value - investment
+
+        total_investment += investment
+        total_value += current_value
+
+        pl_color = 'green' if profit_loss >= 0 else 'red'
+
+        table_data.append([
+            stock['symbol'],
+            f"{stock['quantity']:,}",
+            f"₹{stock['buy_price']:,}",
+            f"₹{current_price:,.2f}",
+            f"₹{investment:,.2f}",
+            f"₹{current_value:,.2f}",
+            f'<span style="color:{pl_color};">₹{profit_loss:,.2f}</span>'
+        ])
+
+    overall_pl = total_value - total_investment
+    overall_pl_color = 'green' if overall_pl >= 0 else 'red'
+
+    # Generate the HTML message
+    html_message = generate_html_report(headers, table_data, total_investment, total_value, overall_pl,
+                                        overall_pl_color)
+
+    subject = f"📊 Stock Returns Report - {datetime.now().strftime('%Y-%m-%d')}"
+    send_email(subject, html_message)
+
+
+# ===== FUNCTION TO GENERATE HTML =====
+def generate_html_report(headers, table_data, total_investment, total_value, overall_pl, overall_pl_color):
+    # Convert list of lists into an HTML table string
+    table_html = tabulate(table_data, headers=headers, tablefmt="html")
+
+    # The HTML template for the email
+    html_template = f"""
+    <html>
+        <head>
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 20px; }}
+                .container {{ max-width: 800px; margin: auto; background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }}
+                .header h1 {{ color: #2c3e50; margin: 0; }}
+                .header p {{ color: #7f8c8d; font-size: 14px; margin: 5px 0 0; }}
+                .summary {{ background-color: #ecf0f1; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 20px; }}
+                .summary .value {{ font-size: 24px; font-weight: bold; margin-top: 5px; }}
+                .summary .label {{ font-size: 14px; color: #7f8c8d; }}
+                .summary-grid {{ display: flex; justify-content: space-around; }}
+                .summary-item {{ text-align: center; flex: 1; }}
+                h2 {{ color: #34495e; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                th, td {{ padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }}
+                th {{ background-color: #3498db; color: #ffffff; font-weight: bold; }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .footer {{ text-align: center; margin-top: 20px; font-size: 12px; color: #95a5a6; }}
+                .profit {{ color: #27ae60; }}
+                .loss {{ color: #e74c3c; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>📊 Stock Portfolio Report</h1>
+                    <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                </div>
+
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="label">Total Investment</div>
+                        <div class="value">₹{total_investment:,.2f}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Current Value</div>
+                        <div class="value">₹{total_value:,.2f}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Overall P/L</div>
+                        <div class="value"><span class="{"profit" if overall_pl_color == "green" else "loss"}">₹{overall_pl:,.2f}</span></div>
+                    </div>
+                </div>
+
+                <h2>Portfolio Details</h2>
+                {table_html}
+
+                <div class="footer">
+                    This report provides a snapshot of your stock portfolio.
+                </div>
+            </div>
+        </body>
+    </html>
+    """
+    return html_template
+
+
+# ===== ASK USER =====
+choice = input("Do you want to get a stock returns report? (yes/no): ").strip().lower()
+if choice == "yes":
+    analyze_stocks()
+else:
+    print("❌ Report not generated.")
