@@ -27,9 +27,9 @@ def send_email(subject, message):
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, EMAIL_RECEIVERS, msg.as_string())
         server.quit()
-        print("✅ Email sent successfully!")
+        print("Email sent successfully!")
     except Exception as e:
-        print("❌ Error sending email:", e)
+        print("Error sending email:", e)
 
 
 # Your portfolio
